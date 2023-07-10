@@ -1,4 +1,5 @@
 import random
+import sys
 from timeit import timeit
 
 import numpy as np
@@ -10,6 +11,19 @@ def argsort(seq):
     return sorted(range(len(seq)), key=seq.__getitem__)
 
 
+def create_numpy_set(word_map, word_positions):
+    numpy_set = np.zeros(len(word_map), dtype=bool)
+    for idx in word_positions:
+        numpy_set[idx] = True
+    return numpy_set
+
+def create_numpy_set_2(word_map, word_positions):
+    numpy_set = np.zeros(len(word_map), dtype=bool)
+    word_positions = np.array(word_positions)
+    numpy_set[word_positions] = True
+    return numpy_set
+
+
 def main():
     with open("./ram/data/ram_tag_list.txt", "r") as f:
         words = f.read().splitlines()
@@ -19,11 +33,20 @@ def main():
 
     random.shuffle(words)
     for n_words in (1, 10, 100, 1000):
+        n_runs = 1_000_000 // n_sets
+        conversion_factor = 1_000_000 / n_runs
+
+        int_words = [word_map[word] for word in words[:n_words]]
+        print()
+        print(f"number of words in base set: {n_words}")
+        print(f"creating set:     {timeit(lambda: set(words[:n_words]), number=n_runs) * conversion_factor:.2f} us")
+        print(f"creating int set: {timeit(lambda: set(int_words), number=n_runs) * conversion_factor:.2f} us")
+        print(f"creating numpy:   {timeit(lambda: create_numpy_set(word_map, int_words), number=n_runs) * conversion_factor:.2f} us")
+        print(f"creating numpy 2: {timeit(lambda: create_numpy_set_2(word_map, int_words), number=n_runs) * conversion_factor:.2f} us")
+
         base_set = set(words[:n_words])
-        base_int_set = {word_map[word] for word in words[:n_words]}
-        base_numpy = np.zeros(len(word_map), dtype=bool)
-        for word in words[:n_words]:
-            base_numpy[word_map[word]] = True
+        base_int_set = set(int_words)
+        base_numpy = create_numpy_set(word_map, int_words)
 
         sets = [set(random.sample(words, random.randint(5, 50))) for _ in range(n_sets)]
         int_sets = [{word_map[word] for word in word_set} for word_set in sets]
@@ -58,9 +81,7 @@ def main():
             overlaps = [base_int_set & int_set for int_set in int_sets]
             return argsort(overlaps)
 
-        n_runs = 1_000_000 // n_sets
-        conversion_factor = 1_000_000 / n_runs
-        print(f"\nnumber of words in base set: {n_words}")
+        print()
         print(f"numpy overlap:       {timeit(numpy_overlap, number=n_runs) * conversion_factor:.2f} us")
         print(f"numpy stack overlap: {timeit(numpy_stack_overlap, number=n_runs) * conversion_factor:.2f} us")
         print(f"set overlap:         {timeit(set_overlap, number=n_runs) * conversion_factor:.2f} us")
@@ -68,8 +89,13 @@ def main():
         print(f"set int overlap:     {timeit(set_int_overlap, number=n_runs) * conversion_factor:.2f} us")
         print(f"set int overlap 2:   {timeit(set_int_overlap_2, number=n_runs) * conversion_factor:.2f} us")
         print()
-        print(f"numpy size: {asizeof.asizeof(base_numpy)} bytes")
-        print(f"set size: {asizeof.asizeof(base_set)} bytes")
+
+        # print(f"numpy size:   {sys.getsizeof(base_numpy)} bytes")
+        # print(f"set size:     {sys.getsizeof(base_set)} bytes")
+        # print(f"set int size: {sys.getsizeof(base_int_set)} bytes")
+
+        print(f"numpy size:   {asizeof.asizeof(base_numpy)} bytes")
+        print(f"set size:     {asizeof.asizeof(base_set)} bytes")
         print(f"set int size: {asizeof.asizeof(base_int_set)} bytes")
 
 if __name__ == "__main__":
