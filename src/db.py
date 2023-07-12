@@ -2,8 +2,11 @@ import json
 import sqlite3
 import os
 from hashlib import sha1
+from typing import Optional
 
 from PIL import Image
+
+from src.index import TagIndex
 
 
 class StorageDB:
@@ -35,6 +38,18 @@ class StorageDB:
             "INSERT INTO tags (id, tags) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET tags = ?",
             (img_id, tags_json, tags_json),
         )
+
+    def create_tag_index(self) -> TagIndex:
+        cur = self.conn.execute("SELECT id, tags FROM tags")
+        img_ids, img_tags = [], []
+        for img_id, tags in cur:
+            img_ids.append(img_id)
+            img_tags.append(set(json.loads(tags)))
+        return TagIndex(img_ids, img_tags)
+
+    def retrieve_img(self, img_id: str) -> Optional[tuple[str, bytes]]:
+        cur = self.conn.execute("SELECT extension, content FROM images WHERE id = ?", (img_id,))
+        return cur.fetchone()
 
     def close(self):
         self.conn.commit()

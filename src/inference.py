@@ -33,10 +33,10 @@ def create_ram_extractor(model_path: str, image_size: int = 384, device: str = "
     model.to(torch_device)
 
     @torch.no_grad()
-    def extractor(images: list[Image.Image]):
+    def extractor(images: list[Image.Image]) -> list[set[str]]:
         image = torch.stack([transform(image) for image in images], dim=0).to(torch_device)
         res = model.generate_tag(image, model)
-        return [[x.strip() for x in tags.split("|")] for tags in res[0]]
+        return [{x.strip() for x in tags.split("|")} for tags in res[0]]
 
     return extractor
 
