@@ -1,15 +1,16 @@
 import argparse
 import os
 from io import BytesIO
+from typing import Callable
 
 import torch
 from PIL import Image
 
-from src.inference import create_ram_extractor
+from src.inference import create_ram_extractor, create_clip_extractor
 from src.db import StorageDB
 
 
-def process_batch(batch, extractor, db: StorageDB) -> None:
+def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: StorageDB) -> None:
     img_ids = []
     imgs = []
     for img_path, img_bytes, extension in batch:
@@ -21,9 +22,12 @@ def process_batch(batch, extractor, db: StorageDB) -> None:
         img_ids.append(img_id)
         imgs.append(img)
 
-    tags = extractor(imgs)
-    for img_id, tag in zip(img_ids, tags):
+    tags = ram_extractor(imgs)
+    features = clip_extractor(imgs)
+    for img_id, tag, feat in zip(img_ids, tags, features):
         db.insert_tags(img_id, tag)
+        db.insert_features(img_id, feat)
+    db.commit()
 
 
 def main():
@@ -36,7 +40,8 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     db = StorageDB(args.db_path)
-    extractor = create_ram_extractor(args.model_path, device=device)
+    ram_extractor = create_ram_extractor(args.model_path, device=device)
+    clip_extractor, _ = create_clip_extractor(device)
 
     file_paths = os.listdir(args.img_folder)
     batch = []
@@ -48,12 +53,12 @@ def main():
                 img_bytes = f.read()
             batch.append((img_path, img_bytes, extension))
             if len(batch) >= args.batch_size:
-                process_batch(batch, extractor, db)
+                process_batch(batch, ram_extractor, clip_extractor, db)
                 batch = []
                 print(f"processed {i}/{len(file_paths)} images")
 
         if batch:
-            process_batch(batch, extractor, db)
+            process_batch(batch, ram_extractor, clip_extractor, db)
 
         print("finished")
 
