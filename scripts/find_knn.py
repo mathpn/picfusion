@@ -5,9 +5,8 @@ import base64
 import torch
 from PIL import Image
 
-from src.inference import create_ram_extractor
+from src.inference import create_ram_extractor, create_clip_extractor
 from src.db import StorageDB
-from src.knn import tag_search
 
 
 def main():
@@ -16,6 +15,7 @@ def main():
     group.add_argument("--image-mode", action="store_const", dest="type", const="image", default="image")
     group.add_argument("--text-mode", action="store_const", dest="type", const="text")
     parser.add_argument("--image", type=str, help="path to image file")
+    parser.add_argument("--text", type=str, default=None)
     parser.add_argument("--tags", type=str, nargs="+", help="tags to query nearest neighbors. Use --show-tags to print options.")
     parser.add_argument("--db", type=str, required=True)
     parser.add_argument("--show-tags", action="store_true", help="show all available tags")
@@ -31,8 +31,10 @@ def main():
         print("\n".join(sorted(valid_tags)))
         return
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     db = StorageDB(args.db)
     tag_index = db.create_tag_index()
+    clip_index = db.create_clip_index()
 
     if args.type == "image":
         if args.image is None:
@@ -41,7 +43,6 @@ def main():
             raise ValueError("--model-path must be provided")
 
         img = Image.open(args.image)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         extractor = create_ram_extractor(args.model_path, device=device)
         tags = extractor([img])[0]
         input_tags = set(args.tags or [])
@@ -54,7 +55,14 @@ def main():
         print("saved HTML with results to ./output.html")
 
     else:
-        pass
+        _, clip_extractor = create_clip_extractor(device)
+        text_feats = clip_extractor([args.text])
+        top_ids = clip_index.find_knn(text_feats, args.top_k)
+        imgs = [db.retrieve_img(img_id) for img_id in top_ids]
+        with open("output.html", "w") as out_html:
+            for extension, img_bytes in imgs:
+                out_html.write(f"<img src='data:image/{extension};base64,{base64.b64encode(img_bytes).decode('utf-8')}' /> <hr>\n")
+        print("saved HTML with results to ./output.html")
 
 
 if __name__ == '__main__':
