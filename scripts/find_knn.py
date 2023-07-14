@@ -33,8 +33,7 @@ def main():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     db = StorageDB(args.db)
-    tag_index = db.create_tag_index()
-    clip_index = db.create_clip_index()
+    index = db.create_index()
 
     if args.type == "image":
         if args.image is None:
@@ -47,8 +46,8 @@ def main():
         tags = extractor([img])[0]
         input_tags = set(args.tags or [])
         tags = tags | (input_tags & valid_tags)
-        top_ids = tag_index.find_knn(tags, args.top_k)
-        imgs = [db.retrieve_img(img_id) for img_id in top_ids]
+        top_ids = index.find_knn_tags(tags, args.top_k)
+        imgs = [db.retrieve_img(img_id) for img_id, _ in top_ids]
         with open("output.html", "w") as out_html:
             for extension, img_bytes in imgs:
                 out_html.write(f"<img src='data:image/{extension};base64,{base64.b64encode(img_bytes).decode('utf-8')}' /> <hr>\n")
@@ -57,8 +56,8 @@ def main():
     else:
         _, clip_extractor = create_clip_extractor(device)
         text_feats = clip_extractor([args.text])
-        top_ids = clip_index.find_knn(text_feats, args.top_k)
-        imgs = [db.retrieve_img(img_id) for img_id in top_ids]
+        top_ids = index.find_knn_clip(text_feats, args.top_k)
+        imgs = [db.retrieve_img(img_id) for img_id, _ in top_ids]
         with open("output.html", "w") as out_html:
             for extension, img_bytes in imgs:
                 out_html.write(f"<img src='data:image/{extension};base64,{base64.b64encode(img_bytes).decode('utf-8')}' /> <hr>\n")
