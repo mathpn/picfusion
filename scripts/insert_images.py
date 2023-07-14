@@ -6,8 +6,8 @@ from typing import Callable
 import torch
 from PIL import Image
 
-from src.inference import create_ram_extractor, create_clip_extractor
 from src.db import StorageDB
+from src.inference import create_clip_extractor, create_ram_extractor
 
 
 def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: StorageDB) -> None:

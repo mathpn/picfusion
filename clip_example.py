@@ -1,7 +1,7 @@
 import argparse
 
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+from transformers import CLIPModel, CLIPProcessor
 
 
 def main():

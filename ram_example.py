@@ -1,12 +1,12 @@
 import argparse
+
 import numpy as np
-
 import torch
-
 from PIL import Image
-from ram.models import ram
-from ram import inference_ram as inference
+
 from ram import get_transform
+from ram import inference_ram as inference
+from ram.models import ram
 
 
 def main():

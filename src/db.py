@@ -1,6 +1,5 @@
 import json
 import sqlite3
-import os
 from hashlib import sha1
 from typing import Optional
 

@@ -2,10 +2,10 @@
 Inference functions.
 """
 
-import torch
 import numpy as np
+import torch
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+from transformers import CLIPModel, CLIPProcessor
 
 from ram import get_transform
 from ram.models import ram
