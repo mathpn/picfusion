@@ -6,7 +6,6 @@ import torch
 import numpy as np
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
-from torchvision import transforms
 
 from ram import get_transform
 from ram.models import ram
@@ -25,7 +24,7 @@ def create_clip_extractor(device: str = "cpu"):
         feat = model.get_image_features(**inputs)
         feat = feat.cpu().numpy()
         feat /= np.linalg.norm(feat, axis=-1, keepdims=True)
-        return featbe normalized!
+        return feat
 
     @torch.no_grad()
     def text_extractor(text: list[str]) -> np.ndarray:
@@ -60,7 +59,7 @@ if __name__ == "__main__":
     ram_extractor = create_ram_extractor("./models/ram_swin_large_14m.pth")
     clip_extractor = create_clip_extractor()
 
-    img = Image.open("./34845106.png")
+    img, _ = Image.open("./34845106.png")
     out = clip_extractor(img)
     print(out)
     out = ram_extractor([img])

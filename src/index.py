@@ -17,26 +17,36 @@ def cos_sim(a, b):
     return a @ b.T
 
 
-class TagIndex:
-    def __init__(self, img_ids: list[str], tags: list[set[str]]):
+class CompositeIndex:
+    def __init__(self, img_ids: list[str], tags: list[set[str]], features: np.ndarray):
         self.img_ids = img_ids
         self.tags = tags
-
-    def find_knn(self, query_tags: Iterable[str], top_k: int) -> list[str]:
-        if not isinstance(query_tags, set):
-            query_tags = set(query_tags)
-        overlap = [len(query_tags & tags) for tags in self.tags]
-        sort_idx = argsort(overlap, ascending=False)
-        return [self.img_ids[i] for i in sort_idx[:top_k]]
-
-
-class ClipIndex:
-    def __init__(self, img_ids: list[str], features: np.ndarray):
-        self.img_ids = img_ids
         self.features = features
 
-    def find_knn(self, query_feats: np.ndarray, top_k: int) -> list[str]:
-        # XXX features must be of unit norm!
-        sim = query_feats.reshape(1, -1) @ self.features.T
-        sort_idx = np.argsort(-sim[0])
-        return [self.img_ids[i] for i in sort_idx[:top_k]]
+    def find_knn_combined(
+        self, query_tags: Iterable[str], query_feat: np.ndarray, top_k: int
+    ) -> list[tuple[str, float]]:
+        tag_overlap = self.get_tag_overlap(query_tags)
+        tag_overlap = np.array(tag_overlap)
+        clip_sim = self.get_clip_sim(query_feat)
+        avg_sim = (tag_overlap + clip_sim) / 2
+        sort_idx = np.argsort(-avg_sim)
+        return [(self.img_ids[i], avg_sim[i]) for i in sort_idx[:top_k]]
+
+    def find_knn_tags(self, query_tags: Iterable[str], top_k: int) -> list[tuple[str, float]]:
+        tag_overlap = self.get_tag_overlap(query_tags)
+        sort_idx = argsort(tag_overlap, ascending=False)
+        return [(self.img_ids[i], tag_overlap[i]) for i in sort_idx[:top_k]]
+
+    def find_knn_clip(self, query_feat: np.ndarray, top_k: int) -> list[tuple[str, float]]:
+        clip_sim = self.get_clip_sim(query_feat)
+        sort_idx = np.argsort(-clip_sim)
+        return [(self.img_ids[i], clip_sim[i]) for i in sort_idx[:top_k]]
+
+    def get_tag_overlap(self, query_tags: Iterable[str]) -> list[float]:
+        if not isinstance(query_tags, set):
+            query_tags = set(query_tags)
+        return [len(query_tags & tags) / len(tags) for tags in self.tags]
+
+    def get_clip_sim(self, query_feat: np.ndarray) -> np.ndarray:
+        return (query_feat.reshape(1, -1) @ self.features.T)[0, :]

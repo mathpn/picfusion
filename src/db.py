@@ -6,7 +6,7 @@ from typing import Optional
 
 import numpy as np
 
-from src.index import TagIndex, ClipIndex
+from src.index import CompositeIndex
 
 
 class StorageDB:
@@ -54,23 +54,17 @@ class StorageDB:
             (img_id, feature_bytes, feature_bytes),
         )
 
-    def create_tag_index(self) -> TagIndex:
-        cur = self.conn.execute("SELECT id, tags FROM tags")
-        img_ids, img_tags = [], []
-        for img_id, tags in cur:
+    def create_index(self) -> CompositeIndex:
+        cur = self.conn.execute(
+            "SELECT tags.id, tags, features FROM tags JOIN features ON tags.id = features.id"
+        )
+        img_ids, img_tags, features = [], [], []
+        for img_id, tags, blob in cur:
             img_ids.append(img_id)
             img_tags.append(set(json.loads(tags)))
-        return TagIndex(img_ids, img_tags)
-
-    def create_clip_index(self) -> ClipIndex:
-        cur = self.conn.execute("SELECT id, features FROM features")
-        img_ids, img_features = [], []
-        for img_id, blob in cur:
-            # XXX dtype
-            feat = np.frombuffer(blob, dtype=np.float32)
-            img_ids.append(img_id)
-            img_features.append(feat)
-        return ClipIndex(img_ids, np.stack(img_features))
+            features.append(np.frombuffer(blob, dtype=np.float32))
+        features = np.stack(features)
+        return CompositeIndex(img_ids, img_tags, features)
 
     def retrieve_img(self, img_id: str) -> Optional[tuple[str, bytes]]:
         cur = self.conn.execute("SELECT extension, content FROM images WHERE id = ?", (img_id,))
