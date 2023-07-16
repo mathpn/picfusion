@@ -162,3 +162,10 @@ cython_debug/
 
 # models folder
 /models
+/images
+
+# database files
+*.db
+
+# HTML files
+*.html
