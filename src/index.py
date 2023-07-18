@@ -46,7 +46,7 @@ class CompositeIndex:
     def get_tag_overlap(self, query_tags: Iterable[str]) -> list[float]:
         if not isinstance(query_tags, set):
             query_tags = set(query_tags)
-        return [len(query_tags & tags) / len(tags) for tags in self.tags]
+        return [len(query_tags & tags) / len(query_tags) for tags in self.tags]
 
     def get_clip_sim(self, query_feat: np.ndarray) -> np.ndarray:
         return (query_feat.reshape(1, -1) @ self.features.T)[0, :]
