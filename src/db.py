@@ -1,4 +1,5 @@
 import json
+import os
 import sqlite3
 from hashlib import sha1
 from typing import Optional
@@ -9,8 +10,12 @@ from src.index import CompositeIndex
 
 
 class StorageDB:
-    def __init__(self, db_path: str):
-        self.conn = sqlite3.connect(db_path)
+    def __init__(self, db_path: str, read_mode: bool = False):
+        db_path = os.path.abspath(db_path)
+        if read_mode:
+            db_path = f"file:{db_path}?mode=ro"
+        print(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=not read_mode, uri=read_mode)
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, extension TEXT, content BLOB)"
         )
