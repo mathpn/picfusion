@@ -1,4 +1,5 @@
 import io
+import math
 
 import streamlit as st
 import torch
@@ -25,6 +26,9 @@ def get_searcher(model_path: str, valid_tags: set[str], device):
     index = db.create_index()
 
     def do_search(img_file=None, input_tags=None, text=None, top_k: int = 10):
+        if img_file is None and not input_tags and not text:
+            return []
+
         tags = set()
         feat, img_feat, txt_feat = None, None, None
         if img_file is not None:
@@ -63,22 +67,46 @@ def main():
     valid_tags = get_valid_tags(TAG_FILE_PATH)
     searcher = get_searcher(MODEL_PATH, valid_tags, device)
 
+    if "page" not in st.session_state:
+        st.session_state["page"] = 0
+
+    if "results" not in st.session_state:
+        st.session_state["results"] = []
+
+    n_cols = 4
+    n_rows = 3
+    items_per_page = n_cols * n_rows
+
     file_upload = st.file_uploader("Upload image:", accept_multiple_files=False)
     tags_selector = st.multiselect("Desired tags", options=sorted(valid_tags))
     txt_descriptor = st.text_input("Text description:", max_chars=256)
-    top_k = st.slider("Number of images to retrieve:", min_value=1, max_value=100, value=12)
-    search_button = st.button("Search Images")
-    img_info = []
-    if search_button:
-        img_info = searcher(file_upload, tags_selector, txt_descriptor, top_k)
+    top_k = st.slider(
+        "Number of images to retrieve:", min_value=1, max_value=100, value=items_per_page
+    )
+
+    results = searcher(file_upload, tags_selector, txt_descriptor, top_k)
+    st.session_state["results"] = results
+
+    n_pages = math.ceil(len(st.session_state["results"]) / items_per_page)
+    prev_col, _, next_col = st.columns([3, 10, 2.25])
+
+    if next_col.button("Next page"):
+        st.session_state["page"] = min(n_pages - 1, st.session_state["page"] + 1)
+
+    if prev_col.button("Previous page"):
+        st.session_state["page"] = max(0, st.session_state["page"] - 1)
 
     groups = []
-    n = 4
-    for i in range(0, len(img_info), n):
-        groups.append(img_info[i : i + n])
+    current_page = st.session_state["page"]
+    img_info = st.session_state["results"]
+    start_idx = current_page * items_per_page
+    end_idx = min((current_page + 1) * items_per_page, len(img_info))
+    page_img_info = img_info[start_idx:end_idx]
+    for i in range(0, len(page_img_info), n_cols):
+        groups.append(page_img_info[i : i + n_cols])
 
     for group in groups:
-        cols = st.columns(n)
+        cols = st.columns(n_cols)
         for i, (_, img_bytes, score) in enumerate(group):
             img = Image.open(io.BytesIO(img_bytes))
             img = ImageOps.exif_transpose(img)
