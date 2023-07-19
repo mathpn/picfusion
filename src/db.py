@@ -3,6 +3,7 @@ import os
 import sqlite3
 from hashlib import sha1
 from typing import Optional
+from datetime import datetime
 
 import numpy as np
 
@@ -17,7 +18,7 @@ class StorageDB:
         print(db_path)
         self.conn = sqlite3.connect(db_path, check_same_thread=not read_mode, uri=read_mode)
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, extension TEXT, content BLOB)"
+            "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, extension TEXT, timestamp TEXT, content BLOB)"
         )
         # NOTE separate table for performance purposes
         self.conn.execute(
@@ -36,11 +37,11 @@ class StorageDB:
         )
         self.conn.commit()
 
-    def insert_image(self, img_bytes: bytes, extension: str) -> str:
+    def insert_image(self, img_bytes: bytes, timestamp: datetime, extension: str) -> str:
         img_id = sha1(img_bytes).hexdigest()
         self.conn.execute(
-            "INSERT OR IGNORE INTO images (id, extension, content) VALUES (?, ?, ?)",
-            (img_id, extension, img_bytes),
+            "INSERT OR IGNORE INTO images (id, extension, timestamp, content) VALUES (?, ?, ?, ?)",
+            (img_id, extension, timestamp.isoformat(), img_bytes),
         )
         return img_id
 

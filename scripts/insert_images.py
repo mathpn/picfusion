@@ -2,6 +2,7 @@ import argparse
 import os
 from io import BytesIO
 from typing import Callable
+from datetime import datetime
 
 import torch
 from PIL import Image
@@ -16,9 +17,12 @@ def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: 
     for img_path, img_bytes, extension in batch:
         try:
             img = Image.open(BytesIO(img_bytes))
+            timestamp_str = img._getexif()[36867]  # DateTimeOriginal tag
+            timestamp = datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S")
         except Exception as exc:
             print(f"image file {img_path} failed to open: {exc}")
-        img_id = db.insert_image(img_bytes, extension)
+            continue
+        img_id = db.insert_image(img_bytes, timestamp, extension)
         img_ids.append(img_id)
         imgs.append(img)
 
@@ -63,6 +67,8 @@ def main():
         print("finished")
 
     except KeyboardInterrupt:
+        pass
+    finally:
         db.close()
 
 
