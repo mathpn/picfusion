@@ -1,9 +1,9 @@
 import json
 import os
 import sqlite3
+from datetime import datetime
 from hashlib import sha1
 from typing import Optional
-from datetime import datetime
 
 import numpy as np
 

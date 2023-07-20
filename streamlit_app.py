@@ -1,7 +1,10 @@
+import base64
 import io
+import json
 import math
 
 import streamlit as st
+import streamlit.components.v1 as components
 import torch
 from PIL import Image, ImageOps
 
@@ -55,14 +58,71 @@ def get_searcher(model_path: str, valid_tags: set[str], device):
         else:
             top_ids = index.find_knn_tags(tags, top_k)
 
-        img_info = [(*db.retrieve_img(img_id), score) for img_id, score in top_ids]
+        img_info = [(img_id, *db.retrieve_img(img_id), score) for img_id, score in top_ids]
         return img_info
 
     return do_search
 
 
+# check https://discuss.streamlit.io/t/automatic-download-select-and-download-file-with-single-button-click/15141/4
+def download_button(object_to_download, download_filename):
+    """
+    Generates a link to download the given object_to_download.
+    Params:
+    ------
+    object_to_download:  The object to be downloaded.
+    download_filename (str): filename and extension of file. e.g. mydata.csv,
+    Returns:
+    -------
+    (str): the anchor tag to download object_to_download
+    """
+    if isinstance(object_to_download, bytes):
+        pass
+
+    # Try JSON encode for everything else
+    else:
+        object_to_download = json.dumps(object_to_download)
+
+    try:
+        # some strings <-> bytes conversions necessary here
+        b64 = base64.b64encode(object_to_download.encode()).decode()
+
+    except AttributeError as e:
+        b64 = base64.b64encode(object_to_download).decode()
+
+    dl_link = f"""
+    <html>
+    <head>
+    <title>Start Auto Download file</title>
+    <script src="http://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script>
+    $('<a href="data:image/jpeg;base64,{b64}" download="{download_filename}">')[0].click()
+    </script>
+    </head>
+    </html>
+    """
+    return dl_link
+
+
+def download_img(db: StorageDB, img_id: str):
+    result = db.retrieve_img(img_id)
+    if result is None:
+        return
+    extension, img_bytes = result
+    components.html(
+        download_button(img_bytes, f"{img_id}{extension}"),
+        height=0,
+    )
+    print(img_id)
+
+
+def build_callback(db: StorageDB, img_id: str):
+    return lambda: download_img(db, img_id)
+
+
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    db = StorageDB("./storage.db", read_mode=True)  # FIXME duplicated
 
     valid_tags = get_valid_tags(TAG_FILE_PATH)
     searcher = get_searcher(MODEL_PATH, valid_tags, device)
@@ -107,10 +167,14 @@ def main():
 
     for group in groups:
         cols = st.columns(n_cols)
-        for i, (_, img_bytes, score) in enumerate(group):
+        button_cols = st.columns(n_cols)
+        for i, (img_id, _, img_bytes, score) in enumerate(group):
             img = Image.open(io.BytesIO(img_bytes))
             img = ImageOps.exif_transpose(img)
-            cols[i].image(img, caption=f"{score:.3f}", output_format="JPEG")
+            cols[i].image(img, caption=f"{score:.3f}")
+            callback = build_callback(db, img_id)
+            # TODO display downsized but download fullsized version
+            button_cols[i].button("Download", key=img_id, on_click=callback, use_container_width=True)
 
 
 if __name__ == "__main__":

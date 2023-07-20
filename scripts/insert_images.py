@@ -1,8 +1,8 @@
 import argparse
 import os
+from datetime import datetime
 from io import BytesIO
 from typing import Callable
-from datetime import datetime
 
 import torch
 from PIL import Image
