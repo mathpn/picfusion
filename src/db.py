@@ -15,12 +15,11 @@ class StorageDB:
         db_path = os.path.abspath(db_path)
         if read_mode:
             db_path = f"file:{db_path}?mode=ro"
-        print(db_path)
         self.conn = sqlite3.connect(db_path, check_same_thread=not read_mode, uri=read_mode)
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, extension TEXT, timestamp TEXT, content BLOB)"
         )
-        # NOTE separate table for performance purposes
+        # NOTE separate table for performance reasons
         self.conn.execute(
             """
             CREATE TABLE IF NOT EXISTS tags (
@@ -37,11 +36,13 @@ class StorageDB:
         )
         self.conn.commit()
 
-    def insert_image(self, img_bytes: bytes, timestamp: datetime, extension: str) -> str:
+    # TODO insert full size and downsized versions
+    def insert_image(self, img_bytes: bytes, extension: str, timestamp: Optional[datetime] = None) -> str:
         img_id = sha1(img_bytes).hexdigest()
+        timestamp = timestamp.isoformat() if timestamp is not None else None
         self.conn.execute(
             "INSERT OR IGNORE INTO images (id, extension, timestamp, content) VALUES (?, ?, ?, ?)",
-            (img_id, extension, timestamp.isoformat(), img_bytes),
+            (img_id, extension, timestamp, img_bytes),
         )
         return img_id
 

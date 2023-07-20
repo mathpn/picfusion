@@ -17,12 +17,15 @@ def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: 
     for img_path, img_bytes, extension in batch:
         try:
             img = Image.open(BytesIO(img_bytes))
-            timestamp_str = img._getexif()[36867]  # DateTimeOriginal tag
-            timestamp = datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S")
+            exif_metadata = img._getexif()
+            timestamp = None
+            if exif_metadata is not None:
+                timestamp_str = exif_metadata[36867]  # DateTimeOriginal tag
+                timestamp = datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S")
         except Exception as exc:
             print(f"image file {img_path} failed to open: {exc}")
             continue
-        img_id = db.insert_image(img_bytes, timestamp, extension)
+        img_id = db.insert_image(img_bytes, extension, timestamp)
         img_ids.append(img_id)
         imgs.append(img)
 
