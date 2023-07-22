@@ -1,11 +1,13 @@
 import argparse
 import os
+import time
 from datetime import datetime
 from io import BytesIO
 from typing import Callable
 
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
+from PIL.ExifTags import Base
 
 from src.db import StorageDB
 from src.inference import create_clip_extractor, create_ram_extractor
@@ -17,15 +19,25 @@ def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: 
     for img_path, img_bytes, extension in batch:
         try:
             img = Image.open(BytesIO(img_bytes))
-            exif_metadata = img._getexif()
+            exif_metadata = img.getexif() or {}
+            img = ImageOps.exif_transpose(img)
             timestamp = None
-            if exif_metadata is not None:
-                timestamp_str = exif_metadata[36867]  # DateTimeOriginal tag
+            timestamp_str = exif_metadata.get(Base.DateTime.value)
+            if timestamp_str is not None:
                 timestamp = datetime.strptime(timestamp_str, "%Y:%m:%d %H:%M:%S")
+
+            width, height = img.size
+            small_img = img
+            if height > 400:  # TODO parameter
+                width = int(400 / height * width)
+                small_img = img.resize((width, 400))
+            small_img_buffer = BytesIO()
+            small_img.save(small_img_buffer, format="JPEG")
+            small_img_buffer.seek(0)
         except Exception as exc:
             print(f"image file {img_path} failed to open: {exc}")
             continue
-        img_id = db.insert_image(img_bytes, extension, timestamp)
+        img_id = db.insert_image(img_bytes, small_img_buffer.read(), extension, timestamp)
         img_ids.append(img_id)
         imgs.append(img)
 
@@ -53,6 +65,7 @@ def main():
     file_paths = os.listdir(args.img_folder)
     batch = []
     try:
+        init = time.perf_counter()
         for i, file_path in enumerate(file_paths):
             img_path = f"{args.img_folder}/{file_path}"
             extension = os.path.splitext(img_path)[-1]
@@ -62,7 +75,8 @@ def main():
             if len(batch) >= args.batch_size:
                 process_batch(batch, ram_extractor, clip_extractor, db)
                 batch = []
-                print(f"processed {i}/{len(file_paths)} images")
+                print(f"processed {i}/{len(file_paths)} images in {time.perf_counter() - init:.2f} s")
+                init = time.perf_counter()
 
         if batch:
             process_batch(batch, ram_extractor, clip_extractor, db)

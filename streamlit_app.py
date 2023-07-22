@@ -11,8 +11,9 @@ from PIL import Image, ImageOps
 from src.db import StorageDB
 from src.inference import create_clip_extractor, create_ram_extractor
 
-MODEL_PATH = "./models/ram_swin_large_14m.pth"  # FIXME hardcoded
+MODEL_PATH = "./models/ram_swin_large_14m.pth"
 TAG_FILE_PATH = "./ram/data/ram_tag_list.txt"
+DB_PATH = "./storage.db"
 
 
 @st.cache_resource
@@ -22,10 +23,10 @@ def get_valid_tags(tag_file_path: str) -> set[str]:
 
 
 @st.cache_resource
-def get_searcher(model_path: str, valid_tags: set[str], device):
+def get_searcher(model_path: str, db_path: str, valid_tags: set[str], device):
     clip_img_extractor, clip_txt_extractor = create_clip_extractor(device)
     ram_extractor = create_ram_extractor(model_path, device=device)
-    db = StorageDB("./storage.db", read_mode=True)  # FIXME hardcoded
+    db = StorageDB(db_path, read_mode=True)
     index = db.create_index()
 
     def do_search(img_file=None, input_tags=None, text=None, top_k: int = 10):
@@ -58,10 +59,10 @@ def get_searcher(model_path: str, valid_tags: set[str], device):
         else:
             top_ids = index.find_knn_tags(tags, top_k)
 
-        img_info = [(img_id, *db.retrieve_img(img_id), score) for img_id, score in top_ids]
+        img_info = [(img_id, *db.retrieve_small_img(img_id), score) for img_id, score in top_ids]
         return img_info
 
-    return do_search
+    return db, do_search
 
 
 # check https://discuss.streamlit.io/t/automatic-download-select-and-download-file-with-single-button-click/15141/4
@@ -122,10 +123,9 @@ def build_callback(db: StorageDB, img_id: str):
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    db = StorageDB("./storage.db", read_mode=True)  # FIXME duplicated
 
     valid_tags = get_valid_tags(TAG_FILE_PATH)
-    searcher = get_searcher(MODEL_PATH, valid_tags, device)
+    db, searcher = get_searcher(MODEL_PATH, DB_PATH, valid_tags, device)  # XXX parameter
 
     if "page" not in st.session_state:
         st.session_state["page"] = 0
@@ -173,8 +173,9 @@ def main():
             img = ImageOps.exif_transpose(img)
             cols[i].image(img, caption=f"{score:.3f}")
             callback = build_callback(db, img_id)
-            # TODO display downsized but download fullsized version
-            button_cols[i].button("Download", key=img_id, on_click=callback, use_container_width=True)
+            button_cols[i].button(
+                "Download", key=img_id, on_click=callback, use_container_width=True
+            )
 
 
 if __name__ == "__main__":

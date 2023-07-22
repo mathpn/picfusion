@@ -17,7 +17,11 @@ class StorageDB:
             db_path = f"file:{db_path}?mode=ro"
         self.conn = sqlite3.connect(db_path, check_same_thread=not read_mode, uri=read_mode)
         self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, extension TEXT, timestamp TEXT, content BLOB)"
+            """
+            CREATE TABLE IF NOT EXISTS images (
+                id TEXT PRIMARY KEY, extension TEXT, timestamp TEXT, bytes BLOB, small_bytes BLOB
+            )
+            """
         )
         # NOTE separate table for performance reasons
         self.conn.execute(
@@ -37,12 +41,18 @@ class StorageDB:
         self.conn.commit()
 
     # TODO insert full size and downsized versions
-    def insert_image(self, img_bytes: bytes, extension: str, timestamp: Optional[datetime] = None) -> str:
+    def insert_image(
+        self,
+        img_bytes: bytes,
+        small_img_bytes: bytes,
+        extension: str,
+        timestamp: Optional[datetime] = None,
+    ) -> str:
         img_id = sha1(img_bytes).hexdigest()
         timestamp = timestamp.isoformat() if timestamp is not None else None
         self.conn.execute(
-            "INSERT OR IGNORE INTO images (id, extension, timestamp, content) VALUES (?, ?, ?, ?)",
-            (img_id, extension, timestamp, img_bytes),
+            "INSERT OR IGNORE INTO images (id, extension, timestamp, bytes, small_bytes) VALUES (?, ?, ?, ?, ?)",
+            (img_id, extension, timestamp, img_bytes, small_img_bytes),
         )
         return img_id
 
@@ -72,8 +82,12 @@ class StorageDB:
         features = np.stack(features)
         return CompositeIndex(img_ids, img_tags, features)
 
+    def retrieve_small_img(self, img_id: str) -> Optional[tuple[str, bytes]]:
+        cur = self.conn.execute("SELECT extension, small_bytes FROM images WHERE id = ?", (img_id,))
+        return cur.fetchone()
+
     def retrieve_img(self, img_id: str) -> Optional[tuple[str, bytes]]:
-        cur = self.conn.execute("SELECT extension, content FROM images WHERE id = ?", (img_id,))
+        cur = self.conn.execute("SELECT extension, bytes FROM images WHERE id = ?", (img_id,))
         return cur.fetchone()
 
     def close(self):
