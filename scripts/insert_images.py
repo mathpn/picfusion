@@ -13,7 +13,13 @@ from src.db import StorageDB
 from src.inference import create_clip_extractor, create_ram_extractor
 
 
-def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: StorageDB) -> None:
+def process_batch(
+    batch,
+    ram_extractor: Callable,
+    clip_extractor: Callable,
+    db: StorageDB,
+    small_img_height: int = 400,
+) -> None:
     img_ids = []
     imgs = []
     for img_path, img_bytes, extension in batch:
@@ -28,9 +34,9 @@ def process_batch(batch, ram_extractor: Callable, clip_extractor: Callable, db: 
 
             width, height = img.size
             small_img = img
-            if height > 400:  # TODO parameter
-                width = int(400 / height * width)
-                small_img = img.resize((width, 400))
+            if height > small_img_height:
+                width = int(small_img_height / height * width)
+                small_img = img.resize((width, small_img_height))
             small_img_buffer = BytesIO()
             small_img.save(small_img_buffer, format="JPEG")
             small_img_buffer.seek(0)
@@ -55,6 +61,7 @@ def main():
     parser.add_argument("--db-path", type=str, default="./storage.db")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--model-path", type=str, required=True)
+    parser.add_argument("--small-img-height", type=int, default=400)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,9 +80,11 @@ def main():
                 img_bytes = f.read()
             batch.append((img_path, img_bytes, extension))
             if len(batch) >= args.batch_size:
-                process_batch(batch, ram_extractor, clip_extractor, db)
+                process_batch(batch, ram_extractor, clip_extractor, db, args.small_img_height)
                 batch = []
-                print(f"processed {i}/{len(file_paths)} images in {time.perf_counter() - init:.2f} s")
+                print(
+                    f"processed {i}/{len(file_paths)} images in {time.perf_counter() - init:.2f} s"
+                )
                 init = time.perf_counter()
 
         if batch:

@@ -88,7 +88,7 @@ def download_button(object_to_download, download_filename):
         # some strings <-> bytes conversions necessary here
         b64 = base64.b64encode(object_to_download.encode()).decode()
 
-    except AttributeError as e:
+    except AttributeError:
         b64 = base64.b64encode(object_to_download).decode()
 
     dl_link = f"""
@@ -125,7 +125,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     valid_tags = get_valid_tags(TAG_FILE_PATH)
-    db, searcher = get_searcher(MODEL_PATH, DB_PATH, valid_tags, device)  # XXX parameter
+    db, searcher = get_searcher(MODEL_PATH, DB_PATH, valid_tags, device)
 
     if "page" not in st.session_state:
         st.session_state["page"] = 0

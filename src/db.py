@@ -40,7 +40,6 @@ class StorageDB:
         )
         self.conn.commit()
 
-    # TODO insert full size and downsized versions
     def insert_image(
         self,
         img_bytes: bytes,
