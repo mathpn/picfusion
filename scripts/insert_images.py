@@ -60,7 +60,7 @@ def main():
     parser.add_argument("--img-folder", type=str, required=True)
     parser.add_argument("--db-path", type=str, default="./storage.db")
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--model-path", type=str, required=True)
+    parser.add_argument("--model-path", type=str, default="./models/ram_swin_large_14m.pth")
     parser.add_argument("--small-img-height", type=int, default=400)
     args = parser.parse_args()
 
